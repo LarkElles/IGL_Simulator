@@ -16,7 +16,7 @@
         }
         #game-container {
             width: 100%;
-            max-width: 900px;
+            max-width: 950px;
             display: flex;
             gap: 20px;
         }
@@ -26,8 +26,52 @@
             background-color: #2d2d30;
             padding: 15px;
             border-radius: 8px;
-            border-top: 4px solid #ff4655; /* 类似电竞红 */
+            border-top: 4px solid #ff4655;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* 面板之间的间距 */
         }
+        
+        /* FLTV 数据面板样式 */
+        #fltv-panel {
+            background-color: #1e262c; /* 类似HLTV的深蓝色调 */
+            padding: 12px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            border-left: 3px solid #2b5278;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        .fltv-title {
+            font-weight: bold;
+            color: #4a90e2;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            align-items: center;
+        }
+        .map-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            margin-top: 5px;
+            font-size: 0.85em;
+            color: #ccc;
+        }
+        .rating-badge {
+            background-color: #2b2b2d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
         .player-card {
             background-color: #3e3e42;
             margin-bottom: 10px;
@@ -51,7 +95,7 @@
         .affection-fill {
             height: 100%;
             background-color: #00ff7f;
-            width: 50%; /* 初始50% */
+            width: 50%;
             transition: width 0.3s;
         }
         /* 右侧面板：剧情与选项 */
@@ -96,15 +140,28 @@
             background-color: #4e4e52;
             border-color: #ff4655;
         }
+        @media (max-width: 768px) {
+            #game-container {
+                flex-direction: column;
+            }
+            #sidebar, #main-screen {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
     <div id="sidebar">
-        <h3 style="margin-top: 0;">队伍状态面板</h3>
-        <div id="roster">
+        <div id="fltv-panel">
             </div>
+
+        <div>
+            <h3 style="margin-top: 0; margin-bottom: 10px;">队员好感度</h3>
+            <div id="roster">
+                </div>
+        </div>
     </div>
 
     <div id="main-screen">
@@ -113,20 +170,80 @@
             <div id="story-text">加载中...</div>
         </div>
         <div id="choices-box">
-            </div>
+        </div>
     </div>
 </div>
 
 <script>
-    // 玩家数据初始化（好感度初始为50，满分100）
-    let team = {
-        nain: { name: "nain (突破手)", affection: 50, desc: "老搭档，脾气好，不爱训练但天赋异禀。" },
-        pocky: { name: "pocky (狙击手)", affection: 50, desc: "激进狙击手，上限极高但下限极低，心态差。" },
-        porz: { name: "porz (自由人)", affection: 50, desc: "世界级自由人，极度理智，训练狂魔。" },
-        twiztss: { name: "twiztss (辅助手)", affection: 50, desc: "万能辅助手，爱憎分明，温柔。" }
+    // ---------------- 数据区域 ----------------
+
+    // 新增：FLTV 战队及选手数据
+    let fltvData = {
+        worldRanking: 4,
+        totalWinRate: "68.5%",
+        mapWinRates: {
+            "Mirage": "75%",
+            "Inferno": "60%",
+            "Nuke": "82%",
+            "Ancient": "55%"
+        },
+        playerRatings: {
+            carrycan: 1.02, // 队长你偏向指挥，Rating相对正常
+            nain: 1.12,     // 天赋型突破手
+            pocky: 1.18,    // 上限极高，均值被下限拉低了一点
+            porz: 1.15,     // 稳定高效的老六
+            twiztss: 1.08   // 辅助手，脏活累活干得多
+        }
     };
 
-    // 更新左侧UI
+    // 玩家数据初始化（好感度初始为50）
+    let team = {
+        nain: { name: "nain (突破)", affection: 50, desc: "老搭档，脾气好，不爱训练但天赋异禀。" },
+        pocky: { name: "pocky (狙击)", affection: 50, desc: "激进狙击手，上限极高下限极低，心态差。" },
+        porz: { name: "porz (自由人)", affection: 50, desc: "世界级自由人，极度理智，训练狂魔。" },
+        twiztss: { name: "twiztss (辅助)", affection: 50, desc: "万能辅助手，爱憎分明，温柔。" }
+    };
+
+    // ---------------- UI 渲染区域 ----------------
+
+    // 获取 Rating 的颜色分类 (类似HLTV的变色)
+    function getRatingColor(rating) {
+        if (rating >= 1.10) return '#00ff7f'; // 绿色（大腿）
+        if (rating >= 1.00) return '#ffffff'; // 白色（及格）
+        return '#ff4655'; // 红色（战犯预警）
+    }
+
+    // 渲染 FLTV 面板
+    function updateFLTV() {
+        const fltvDiv = document.getElementById('fltv-panel');
+        
+        // 拼接地图胜率 HTML
+        let mapsHtml = '';
+        for (let map in fltvData.mapWinRates) {
+            // 如果胜率低于 60%，显示红色警示，否则显示绿色
+            let winRateNum = parseInt(fltvData.mapWinRates[map]);
+            let rateColor = winRateNum >= 60 ? '#00ff7f' : '#ff4655';
+            mapsHtml += `<div>${map}: <span style="color:${rateColor}">${fltvData.mapWinRates[map]}</span></div>`;
+        }
+
+        fltvDiv.innerHTML = `
+            <div class="fltv-title">📊 FLTV 战队数据</div>
+            <div class="stat-row"><span>世界排名:</span> <strong style="color: gold;">#${fltvData.worldRanking}</strong></div>
+            <div class="stat-row"><span>近三个月胜率:</span> <strong>${fltvData.totalWinRate}</strong></div>
+            <hr style="border-color: #3e3e42; margin: 8px 0;">
+            <div style="font-size: 0.85em; color: #aaa;">地图胜率:</div>
+            <div class="map-stats">${mapsHtml}</div>
+            <hr style="border-color: #3e3e42; margin: 8px 0;">
+            <div style="font-size: 0.85em; color: #aaa; margin-bottom: 5px;">选手近三个月 Rating 2.0:</div>
+            <div class="stat-row"><span>carrycan(你)</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.carrycan)}">${fltvData.playerRatings.carrycan}</span></div>
+            <div class="stat-row"><span>pocky</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.pocky)}">${fltvData.playerRatings.pocky}</span></div>
+            <div class="stat-row"><span>porz</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.porz)}">${fltvData.playerRatings.porz}</span></div>
+            <div class="stat-row"><span>nain</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.nain)}">${fltvData.playerRatings.nain}</span></div>
+            <div class="stat-row"><span>twiztss</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.twiztss)}">${fltvData.playerRatings.twiztss}</span></div>
+        `;
+    }
+
+    // 更新好感度 UI
     function updateSidebar() {
         const rosterDiv = document.getElementById('roster');
         rosterDiv.innerHTML = '';
@@ -145,7 +262,8 @@
         }
     }
 
-    // 游戏剧情剧本（节点式）
+    // ---------------- 剧情引擎 ----------------
+
     const storyNodes = {
         start: {
             speaker: "系统旁白",
@@ -156,7 +274,7 @@
         },
         scene_meeting: {
             speaker: "carrycan (你)",
-            text: "伙计们，该收心了，准备开始今天的跑图和战术推演。",
+            text: "伙计们，该收心了，准备开始今天的跑图和战术推演。看看我们 FLTV 上的 Ancient 胜率，都快跌破 50% 了。",
             choices: [
                 { text: "继续...", next: "scene_nain_joke" }
             ]
@@ -223,63 +341,51 @@
 
     let currentNode = "start";
 
-
-
-
-    // 渲染节点
     function renderNode(nodeId) {
         const node = storyNodes[nodeId];
 
-        // 绑定名字和文案
         document.getElementById('speaker-name').innerText = node.speaker;
         document.getElementById('story-text').innerHTML = node.text;
 
         const choicesBox = document.getElementById('choices-box');
         choicesBox.innerHTML = '';
 
-        // 生成选项按钮
         node.choices.forEach(choice => {
             let btn = document.createElement('button');
             btn.className = 'choice-btn';
             btn.innerText = choice.text;
             
-            // 点击选项时触发的逻辑
             btn.onclick = () => {
-                
-                // 1. 如果选项有 effect 属性，则计算好感度增减
+                // 计算好感度增减
                 if (choice.effect) {
                     team[choice.effect.player].affection += choice.effect.val;
-                    
-                    // 防止好感度溢出
                     if (team[choice.effect.player].affection > 100) team[choice.effect.player].affection = 100;
                     if (team[choice.effect.player].affection < 0) team[choice.effect.player].affection = 0;
-                    
-                    // 双重影响
                     if (choice.effect.player2) {
                         team[choice.effect.player2].affection += choice.effect.val2;
                     }
                 }
 
-                // 2. 【关键修复】如果选项有 reset 属性，执行重置！
+                // 结局重置数据
                 if (choice.reset) {
                     team.nain.affection = 50; 
                     team.pocky.affection = 50;
                     team.porz.affection = 50; 
                     team.twiztss.affection = 50;
+                    // 在这里你甚至可以写逻辑：如果达成好结局，胜率+1% 之类的玩法
                 }
 
-                // 3. 无论是加减好感度还是重置，最后都统一刷新左侧面板，并进入下一幕
                 updateSidebar();
                 renderNode(choice.next);
             };
-            
             choicesBox.appendChild(btn);
         });
     }
 
-    // 初始化
-    updateSidebar();
-    renderNode(currentNode);
+    // 网页加载完毕后，立刻执行初始化
+    updateFLTV();     // 渲染 FLTV 面板
+    updateSidebar();  // 渲染好感度面板
+    renderNode(currentNode); // 加载第一段剧情
 </script>
 
 </body>
