@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RazeClan - carrycan模拟器</title>
+    <title>RazeClan - 队长指挥模拟器 正式版</title>
     <style>
         body {
             background-color: #1a1a1d;
@@ -16,25 +16,22 @@
         }
         #game-container {
             width: 100%;
-            max-width: 950px;
+            max-width: 1000px;
             display: flex;
             gap: 20px;
         }
-        /* 左侧面板：好感度与属性 */
         #sidebar {
-            width: 30%;
+            width: 35%;
             background-color: #2d2d30;
             padding: 15px;
             border-radius: 8px;
             border-top: 4px solid #ff4655;
             display: flex;
             flex-direction: column;
-            gap: 15px; /* 面板之间的间距 */
+            gap: 15px;
         }
-        
-        /* FLTV 数据面板样式 */
         #fltv-panel {
-            background-color: #1e262c; /* 类似HLTV的深蓝色调 */
+            background-color: #1e262c;
             padding: 12px;
             border-radius: 5px;
             font-size: 0.9em;
@@ -47,8 +44,7 @@
             margin-bottom: 8px;
             font-size: 1.1em;
             display: flex;
-            align-items: center;
-            gap: 5px;
+            justify-content: space-between;
         }
         .stat-row {
             display: flex;
@@ -56,13 +52,18 @@
             margin-bottom: 4px;
             align-items: center;
         }
-        .map-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4px;
+        .schedule-box {
+            background-color: #1a2025;
+            padding: 8px;
+            border-radius: 4px;
             margin-top: 5px;
+            border-left: 2px solid #e6a822;
+        }
+        .schedule-item {
             font-size: 0.85em;
-            color: #ccc;
+            margin-top: 3px;
+            display: flex;
+            justify-content: space-between;
         }
         .rating-badge {
             background-color: #2b2b2d;
@@ -71,7 +72,6 @@
             font-family: monospace;
             font-weight: bold;
         }
-
         .player-card {
             background-color: #3e3e42;
             margin-bottom: 10px;
@@ -95,12 +95,10 @@
         .affection-fill {
             height: 100%;
             background-color: #00ff7f;
-            width: 50%;
             transition: width 0.3s;
         }
-        /* 右侧面板：剧情与选项 */
         #main-screen {
-            width: 70%;
+            width: 65%;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -113,6 +111,7 @@
             font-size: 1.1em;
             line-height: 1.6;
             border-top: 4px solid #00bfff;
+            position: relative;
         }
         #speaker-name {
             font-weight: bold;
@@ -140,6 +139,15 @@
             background-color: #4e4e52;
             border-color: #ff4655;
         }
+        .dice-log {
+            color: #e6a822;
+            font-style: italic;
+            background: rgba(230, 168, 34, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            border-left: 3px solid #e6a822;
+        }
         @media (max-width: 768px) {
             #game-container {
                 flex-direction: column;
@@ -154,13 +162,10 @@
 
 <div id="game-container">
     <div id="sidebar">
-        <div id="fltv-panel">
-            </div>
-
+        <div id="fltv-panel"></div>
         <div>
-            <h3 style="margin-top: 0; margin-bottom: 10px;">队员好感度</h3>
-            <div id="roster">
-                </div>
+            <h3 style="margin-top: 0; margin-bottom: 10px;">队伍状态面板</h3>
+            <div id="roster"></div>
         </div>
     </div>
 
@@ -169,81 +174,79 @@
             <div id="speaker-name">系统提示</div>
             <div id="story-text">加载中...</div>
         </div>
-        <div id="choices-box">
-        </div>
+        <div id="choices-box"></div>
     </div>
 </div>
 
 <script>
-    // ---------------- 数据区域 ----------------
-
-    // 新增：FLTV 战队及选手数据
-    let fltvData = {
-        worldRanking: 4,
-        totalWinRate: "68.5%",
-        mapWinRates: {
-            "Mirage": "75%",
-            "Inferno": "60%",
-            "Nuke": "82%",
-            "Ancient": "55%"
-        },
-        playerRatings: {
-            carrycan: 0.98, // 队长你偏向指挥，Rating相对正常
-            nain: 1.09,     // 天赋型突破手
-            pocky: 1.18,    // 上限极高，均值被下限拉低了一点
-            porz: 1.10,     // 稳定高效的老六
-            twiztss: 1.08   // 辅助手，脏活累活干得多
-        }
+    // ---------------- 核心数据引擎 ----------------
+    let gameStatus = {
+        date: "2022-01-08",
+        arsRanking: 11,
+        captainAge: 32, 
+        teamBasePower: 75, 
+        // 2022真实赛程追踪
+        schedules: [
+            { name: "Plast(BLAST) 春季小组赛", status: "准备中", date: "1月28日-2月6日" },
+            { name: "卡托维兹(Katowice) 2022", status: "未获得资格", date: "2月15日-2月27日" }
+        ]
     };
 
-    // 玩家数据初始化（好感度初始为50）
     let team = {
-        nain: { name: "nain (突破)", affection: 50, desc: "老搭档，脾气好，不爱训练但天赋异禀。" },
-        pocky: { name: "pocky (狙击)", affection: 50, desc: "激进狙击手，上限极高下限极低，心态差。" },
-        porz: { name: "porz (自由人)", affection: 50, desc: "世界级自由人，极度理智，训练狂魔。" },
-        twiztss: { name: "twiztss (辅助)", affection: 50, desc: "万能辅助手，爱憎分明，温柔。" }
+        nain: { name: "nain (突破)", affection: 50, rating: 1.08, desc: "老搭档，不爱训练但天赋异禀。" },
+        pocky: { name: "pocky (狙击)", affection: 50, rating: 1.16, desc: "上下限差距极大的激进狙击手。" },
+        porz: { name: "porz (自由人)", affection: 50, rating: 1.19, desc: "新加入的世界级自由人，训练狂魔。" },
+        twiztss: { name: "twiztss (辅助)", affection: 50, rating: 1.05, desc: "万能辅助手，温柔的气氛组。" }
     };
 
-    // ---------------- UI 渲染区域 ----------------
+    let captainStats = { rating: 0.99, condition: "良好" };
 
-    // 获取 Rating 的颜色分类 (类似HLTV的变色)
+    // ---------------- UI 渲染引擎 ----------------
     function getRatingColor(rating) {
-        if (rating >= 1.10) return '#00ff7f'; // 绿色（大腿）
-        if (rating >= 1.00) return '#ffffff'; // 白色（及格）
-        return '#ff4655'; // 红色（战犯预警）
+        if (rating >= 1.10) return '#00ff7f';
+        if (rating >= 1.00) return '#ffffff';
+        return '#ff4655';
     }
 
-    // 渲染 FLTV 面板
     function updateFLTV() {
         const fltvDiv = document.getElementById('fltv-panel');
         
-        // 拼接地图胜率 HTML
-        let mapsHtml = '';
-        for (let map in fltvData.mapWinRates) {
-            // 如果胜率低于 60%，显示红色警示，否则显示绿色
-            let winRateNum = parseInt(fltvData.mapWinRates[map]);
-            let rateColor = winRateNum >= 60 ? '#00ff7f' : '#ff4655';
-            mapsHtml += `<div>${map}: <span style="color:${rateColor}">${fltvData.mapWinRates[map]}</span></div>`;
-        }
+        // 动态生成赛程列表HTML
+        let scheduleHtml = "";
+        gameStatus.schedules.forEach(item => {
+            let statusColor = item.status === "进行中" ? "#00ff7f" : (item.status === "准备中" ? "#e6a822" : "#888");
+            scheduleHtml += `
+                <div class="schedule-item">
+                    <span style="color:#eee;">${item.name}</span>
+                    <span style="color:${statusColor}; font-size:0.9em;">[${item.status}]</span>
+                </div>
+                <div style="font-size:0.75em; color:#666; margin-bottom:4px;">赛期: ${item.date}</div>
+            `;
+        });
 
         fltvDiv.innerHTML = `
-            <div class="fltv-title">📊 FLTV 战队数据</div>
-            <div class="stat-row"><span>世界排名:</span> <strong style="color: gold;">#${fltvData.worldRanking}</strong></div>
-            <div class="stat-row"><span>近三个月胜率:</span> <strong>${fltvData.totalWinRate}</strong></div>
-            <hr style="border-color: #3e3e42; margin: 8px 0;">
-            <div style="font-size: 0.85em; color: #aaa;">地图胜率:</div>
-            <div class="map-stats">${mapsHtml}</div>
-            <hr style="border-color: #3e3e42; margin: 8px 0;">
-            <div style="font-size: 0.85em; color: #aaa; margin-bottom: 5px;">选手近三个月 Rating 2.0:</div>
-            <div class="stat-row"><span>carrycan(你)</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.carrycan)}">${fltvData.playerRatings.carrycan}</span></div>
-            <div class="stat-row"><span>pocky</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.pocky)}">${fltvData.playerRatings.pocky}</span></div>
-            <div class="stat-row"><span>porz</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.porz)}">${fltvData.playerRatings.porz}</span></div>
-            <div class="stat-row"><span>nain</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.nain)}">${fltvData.playerRatings.nain}</span></div>
-            <div class="stat-row"><span>twiztss</span> <span class="rating-badge" style="color: ${getRatingColor(fltvData.playerRatings.twiztss)}">${fltvData.playerRatings.twiztss}</span></div>
+            <div class="fltv-title">
+                <span>📊 FLTV 实时数据</span>
+                <span style="color:#aaa; font-size: 0.8em; font-weight:normal;">${gameStatus.date}</span>
+            </div>
+            <div class="stat-row"><span>ARS 世界排名:</span> <strong style="color: gold;">#${gameStatus.arsRanking}</strong></div>
+            <div class="schedule-box">
+                <div style="font-size: 0.8em; color: #aaa; margin-bottom:4px;">赛事日程面板:</div>
+                ${scheduleHtml}
+            </div>
+            <hr style="border-color: #3e3e42; margin: 10px 0;">
+            <div style="font-size: 0.85em; color: #aaa; margin-bottom: 5px;">本赛季 Rating 2.0:</div>
+            <div class="stat-row">
+                <span>carrycan (你 | ${gameStatus.captainAge}岁)</span> 
+                <span class="rating-badge" style="color: ${getRatingColor(captainStats.rating)}">${captainStats.rating}</span>
+            </div>
+            <div class="stat-row"><span>nain</span> <span class="rating-badge" style="color: ${getRatingColor(team.nain.rating)}">${team.nain.rating}</span></div>
+            <div class="stat-row"><span>pocky</span> <span class="rating-badge" style="color: ${getRatingColor(team.pocky.rating)}">${team.pocky.rating}</span></div>
+            <div class="stat-row"><span>porz</span> <span class="rating-badge" style="color: ${getRatingColor(team.porz.rating)}">${team.porz.rating}</span></div>
+            <div class="stat-row"><span>twiztss</span> <span class="rating-badge" style="color: ${getRatingColor(team.twiztss.rating)}">${team.twiztss.rating}</span></div>
         `;
     }
 
-    // 更新好感度 UI
     function updateSidebar() {
         const rosterDiv = document.getElementById('roster');
         rosterDiv.innerHTML = '';
@@ -252,100 +255,142 @@
             rosterDiv.innerHTML += `
                 <div class="player-card">
                     <div class="player-name">${p.name}</div>
-                    <div style="font-size: 0.8em; color: #aaa;">${p.desc}</div>
-                    <div style="margin-top: 5px;">好感度: ${p.affection}</div>
+                    <div style="font-size: 0.8em; color: #aaa; margin-bottom: 5px;">${p.desc}</div>
+                    <div style="font-size: 0.8em;">好感度: ${p.affection}</div>
                     <div class="affection-bar">
-                        <div class="affection-fill" style="width: ${p.affection}%"></div>
+                        <div class="affection-fill" style="width: ${p.affection}%; background-color: ${p.affection >= 80 ? '#00bfff' : (p.affection <= 30 ? '#ff4655' : '#00ff7f')}"></div>
                     </div>
                 </div>
             `;
         }
     }
 
-    // ---------------- 剧情引擎 ----------------
+    // ---------------- TRPG 掷骰逻辑 ----------------
+    function executeRoll(rollConfig) {
+        let d100 = Math.floor(Math.random() * 100) + 1;
+        let totalScore = d100 + gameStatus.teamBasePower + rollConfig.tacticalBonus;
+        let isSuccess = totalScore >= rollConfig.dc;
 
+        let logHtml = `
+            <div class="dice-log">
+                <strong>[TRPG判定]</strong> ${rollConfig.desc}<br>
+                基础实力(${gameStatus.teamBasePower}) + 战术加成(${rollConfig.tacticalBonus}) + D100掷骰(${d100}) = <strong>总值 ${totalScore}</strong><br>
+                对抗难度阈值 DC ${rollConfig.dc} ... 
+                <span style="color: ${isSuccess ? '#00ff7f' : '#ff4655'}; font-weight: bold;">
+                    ${isSuccess ? '判定成功！' : '判定失败！'}
+                </span>
+            </div>
+        `;
+
+        return { success: isSuccess, log: logHtml, nextNode: isSuccess ? rollConfig.successNext : rollConfig.failNext };
+    }
+
+    // ---------------- 剧情剧本 ----------------
     const storyNodes = {
         start: {
             speaker: "系统旁白",
-            text: "你是 carrycan，RazeClan 的指挥兼队长。距离Major的预选赛还有最后两天。你推开训练室的门，看到你的四个队友正形态各异地待在里面。<br><br>nain 正在一边喝着咖啡一边看搞笑视频；pocky 正在跑图练习丢道具，但似乎又呲了一颗烟雾弹；porz 正在面无表情地记录着什么；twiztss 则在帮大家整理桌上的外卖垃圾。",
+            text: "你叫 carrycan，1990年4月14日出生。今天是2022年1月8日，休假后的第一天训练日。队伍刚刚发生人员变动：世界级自由人 porz 正式替换了 hoverboarder 加入了 RazeClan。<br><br>你们将在1月31日参加 Plast 春季赛（目前处于准备中状态）。目前队伍的 ARS 排名为 #11，外界对你们这套新阵容充满了审视。<br><br>你走进训练室，porz 正坐在他的新位置上，用他的卷尺调试外设。其他三人也陆续到了。",
             choices: [
-                { text: "拍拍手，引起大家注意，准备开始训练。", next: "scene_meeting" }
+                { 
+                    text: "【温和老登】走上前拍拍手：“伙计们，让我们欢迎新成员 porz 的加入！”", 
+                    // 【关键更新】：支持数组配置，最多可填4人好感度
+                    effects: [
+                        { player: 'twiztss', val: 5 },
+                        { player: 'porz', val: 5 },
+                    ], 
+                    next: "scene_welcome_warm" 
+                },
+                { 
+                    text: "【严厉老登】点点头：“人都到齐了就上号，今天直接打两场训练赛，我要根据情况调整你们负责的位置。porz 会极大程度地增厚我们的战术本。”", 
+                    effects: [
+                        { player: 'porz', val: 5 }
+                    ], 
+                    next: "scene_welcome_strict" 
+                },
+                { 
+                    text: "【放权老登】“nain，带 porz 熟悉一下我们的基础战术，我先去喝口咖啡。”", 
+                    effects: [
+                        { player: 'nain', val: 5 }
+                    ], 
+                    next: "scene_welcome_lazy" 
+                }
             ]
         },
-        scene_meeting: {
-            speaker: "carrycan (你)",
-            text: "伙计们，该收心了，准备开始今天的跑图和战术推演。看看我们 FLTV 上的 Ancient 胜率，都快跌破 50% 了。",
-            choices: [
-                { text: "继续...", next: "scene_nain_joke" }
-            ]
+        scene_welcome_warm: {
+            speaker: "twiztss",
+            text: "（立刻鼓起掌来）欢迎兄弟！我是Fuss，这是Nelvijs，（转过身戳了戳pocky）“快和新成员打个招呼，他和你都是波罗的海人欸！”（pocky懒洋洋地哼唧了一声，含糊不清地打了个招呼。twiztss又转过身）我以前就听说你很厉害了！我已经准备好被推向另一个高度了！<br><br>porz 只是微微推了一下眼镜，点了点头，耳尖微微泛红：“谢谢。我们什么时候开始跑图？”",
+            choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
         },
-        scene_nain_joke: {
-            speaker: "nain",
-            text: "（放下高脚杯，笑嘻嘻地看着你）别这么紧张嘛。放轻松，大不了我们再经历一次四年前那种惨败。对了，要不要现在开个投票，看看有几个人想把你踢了？我先投赞成票哈！",
-            choices: [
-                { text: "【开玩笑回应】这次你可没机会了，因为我会先把你按在冷板凳上。", effect: { player: 'nain', val: 5 }, next: "scene_nain_laugh" },
-                { text: "【严肃回应】四年前的教训还不够吗？别玩梗了，集中注意力。", effect: { player: 'nain', val: -5 }, next: "scene_nain_serious" }
-            ]
-        },
-        scene_nain_laugh: {
-            speaker: "nain",
-            text: "哈哈哈！谁知道咱俩谁先滚蛋呢。",
-            choices: [{ text: "看向正在练道具的pocky...", next: "scene_pocky_nade" }]
-        },
-        scene_nain_serious: {
-            speaker: "nain",
-            text: "（耸耸肩）好吧好吧，大指挥官发话了。我上号就是了。",
-            choices: [{ text: "看向正在练道具的pocky...", next: "scene_pocky_nade" }]
-        },
-        scene_pocky_nade: {
-            speaker: "系统旁白",
-            text: "你注意到屏幕那头的 pocky 眉头紧锁。他刚刚尝试扔一颗复杂的VIP单向烟，结果烟雾弹弹到了门框上，把自己给封了个严实。旁边的 porz 看了一眼，推了一下眼镜，虽然没说话，但眼神里闪过一丝无奈。",
-            choices: [
-                { text: "【鼓励pocky】想法很清奇！这颗烟如果成了绝对能打 Zimble 一个出其不意，再试几次找找参照物。", effect: { player: 'pocky', val: 10 }, next: "scene_pocky_happy" },
-                { text: "【让porz指导】porz，你教教他这颗烟的合理点位。实战里可不能这么失误。", effect: { player: 'porz', val: 5, player2: 'pocky', val2: -5 }, next: "scene_porz_teach" }
-            ]
-        },
-        scene_pocky_happy: {
-            speaker: "pocky",
-            text: "（眼神亮了一下，摸了摸下巴上的胡渣）哼，刚刚只是鼠标滑了。下次肯定没问题。",
-            choices: [{ text: "此时twiztss走了过来...", next: "scene_twiztss_support" }]
-        },
-        scene_porz_teach: {
+        scene_welcome_strict: {
             speaker: "porz",
-            text: "（冷淡地开口）你的准星高了两个像素。比赛里容错率很低，建议你用更常规的丢法，别总搞些花里胡哨的。",
-            choices: [{ text: "pocky撇了撇嘴没说话，此时twiztss走了过来...", next: "scene_twiztss_support" }]
+            text: "（眼神中闪过一丝认同）没问题。我已经研究过你们前两个月的Demo了，在 Inferno 的二楼控制上有些想法，等下可以试试。",
+            choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
         },
-        scene_twiztss_support: {
-            speaker: "twiztss",
-            text: "（笑着把一瓶水递给你）别太操心了。等下打训练赛要不要试试我新想出来的战术？用在场馆淘汰赛的话效果应该还不错。",
+        scene_welcome_lazy: {
+            speaker: "nain",
+            text: "（喝了一口酒红色的可乐）行吧。欢迎来到Raze，Motherfucker。",
+            choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
+        },
+        
+        scene_first_scrim: {
+            speaker: "carrycan (你)",
+            text: "今天我们约了 ARS 排名 #18 的队伍打训练赛。这是 porz 加入后的首秀。作为指挥，你打算采用什么战术基调？",
             choices: [
-                { text: "【温柔回应】多谢了老弟，有你帮我分担真好。", effect: { player: 'twiztss', val: 10 }, next: "scene_end_good" },
-                { text: "【严肃拒绝】按我的规定来，别破坏战术本，做好你该做的。", effect: { player: 'twiztss', val: -10 }, next: "scene_end_bad" }
+                { 
+                    text: "【战术：主打稳健】让 porz 按照他最舒服的节奏单摸，其他人默认控图。（战术加成 +10）", 
+                    isRoll: true,
+                    roll: { desc: "指挥稳健战术测试", tacticalBonus: 10, dc: 120, successNext: "scrim_win", failNext: "scrim_lose" }
+                },
+                { 
+                    text: "【战术：提速冲锋】利用 nain 的突破能力，强行拉开空间。（战术加成 +5，但更看运气）", 
+                    isRoll: true,
+                    roll: { desc: "指挥提速战术测试", tacticalBonus: 5, dc: 110, successNext: "scrim_win", failNext: "scrim_lose" }
+                },
+                { 
+                    text: "【战术：赌博式狙击】围绕 pocky 展开，让他去拿首杀建立开局优势。（战术加成 +0，极高风险）", 
+                    isRoll: true,
+                    roll: { desc: "指挥抽奖战术测试", tacticalBonus: 0, dc: 100, successNext: "scrim_win_pocky", failNext: "scrim_lose_pocky" }
+                }
             ]
         },
-        scene_end_good: {
-            speaker: "twiztss",
-            text: "哈哈，那必须的！走，让我们去给那些陪练队伍上点强度！",
-            choices: [
-                { text: "【试玩版结束】你成功拉进了团队距离，点击重置剧情。", next: "start", reset: true }
-            ]
+
+        scrim_win: {
+            speaker: "系统旁白",
+            text: "训练赛以 16-10 拿下。porz 完美融入了节奏，他的残局处理极其合理。nain 笑着拍了拍手说：“看来新赛季我们有戏啊。”",
+            choices: [{ text: "继续休赛期备战...", next: "start" }] 
         },
-        scene_end_bad: {
-            speaker: "twiztss",
-            text: "（笑容僵住，收回手）...行吧，你是队长，听你的。",
-            choices: [
-                { text: "【试玩版结束】气氛有些尴尬，点击重置剧情。", next: "start", reset: true }
-            ]
+        scrim_lose: {
+            speaker: "系统旁白",
+            text: "训练赛 11-16 落败。与新成员的沟通出现了严重失误。porz 皱着眉头开始在战术册上记录着什么，而 twiztss 赶紧来语音里安慰你：“没事没事，第一天嘛，慢慢磨合，我觉得我们在 CT 方的表现很不错。”",
+            choices: [{ text: "反思战术，重新构思...", next: "start" }]
+        },
+        scrim_win_pocky: {
+            speaker: "pocky",
+            text: "（得意地摸了摸鼻子）",
+            effects: [
+                        { player: 'pocky', val: 10 },
+                        { player: 'porz', val: -5 },
+                    ], 
+            choices: [{ text: "称赞他并继续备战...", next: "start" }]
+        },
+        scrim_lose_pocky: {
+            speaker: "pocky",
+            text: "（皱着眉摸了摸鼻子）",
+            effects: [
+                        { player: 'pocky', val: -15 },
+                        { player: 'porz', val: -5 },
+                    ], 
+            choices: [{ text: "赶紧去安慰或者指导...", next: "start" }]
         }
     };
 
     let currentNode = "start";
 
-    function renderNode(nodeId) {
+    function renderNode(nodeId, previousLog = "") {
         const node = storyNodes[nodeId];
 
         document.getElementById('speaker-name').innerText = node.speaker;
-        document.getElementById('story-text').innerHTML = node.text;
+        document.getElementById('story-text').innerHTML = previousLog + node.text;
 
         const choicesBox = document.getElementById('choices-box');
         choicesBox.innerHTML = '';
@@ -356,36 +401,36 @@
             btn.innerText = choice.text;
             
             btn.onclick = () => {
-                // 计算好感度增减
-                if (choice.effect) {
-                    team[choice.effect.player].affection += choice.effect.val;
-                    if (team[choice.effect.player].affection > 100) team[choice.effect.player].affection = 100;
-                    if (team[choice.effect.player].affection < 0) team[choice.effect.player].affection = 0;
-                    if (choice.effect.player2) {
-                        team[choice.effect.player2].affection += choice.effect.val2;
-                    }
-                }
-
-                // 结局重置数据
-                if (choice.reset) {
-                    team.nain.affection = 50; 
-                    team.pocky.affection = 50;
-                    team.porz.affection = 50; 
-                    team.twiztss.affection = 50;
-                    // 在这里你甚至可以写逻辑：如果达成好结局，胜率+1% 之类的玩法
+                // 【核心升级】：遍历好感度修改数组，完美支持1-4人同时加减分
+                if (choice.effects && Array.isArray(choice.effects)) {
+                    choice.effects.forEach(eff => {
+                        if (team[eff.player]) {
+                            team[eff.player].affection += eff.val;
+                            // 限制上下限在 0 - 100 之间
+                            if (team[eff.player].affection > 100) team[eff.player].affection = 100;
+                            if (team[eff.player].affection < 0) team[eff.player].affection = 0;
+                        }
+                    });
                 }
 
                 updateSidebar();
-                renderNode(choice.next);
+                updateFLTV();
+
+                if (choice.isRoll) {
+                    let rollResult = executeRoll(choice.roll);
+                    renderNode(rollResult.nextNode, rollResult.log);
+                } else {
+                    renderNode(choice.next);
+                }
             };
             choicesBox.appendChild(btn);
         });
     }
 
-    // 网页加载完毕后，立刻执行初始化
-    updateFLTV();     // 渲染 FLTV 面板
-    updateSidebar();  // 渲染好感度面板
-    renderNode(currentNode); // 加载第一段剧情
+    // 初始化运行
+    updateFLTV();
+    updateSidebar();
+    renderNode(currentNode);
 </script>
 
 </body>
