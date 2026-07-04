@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RazeClan - 队长指挥模拟器 正式版</title>
+    <title>RazeClan - 队长指挥模拟器 V1.2 (时间流逝版)</title>
     <style>
         body {
             background-color: #1a1a1d;
@@ -181,25 +181,85 @@
 <script>
     // ---------------- 核心数据引擎 ----------------
     let gameStatus = {
-        date: "2022-01-08",
+        date: "2022-01-08", // 初始日期
         arsRanking: 11,
         captainAge: 32, 
         teamBasePower: 75, 
-        // 2022真实赛程追踪
         schedules: [
             { name: "Plast(BLAST) 春季小组赛", status: "准备中", date: "1月28日-2月6日" },
             { name: "卡托维兹(Katowice) 2022", status: "未获得资格", date: "2月15日-2月27日" }
-        ]
+        ],
+        currentTactic: "",
+        lastScrimWin: false 
     };
 
     let team = {
-        nain: { name: "nain (突破)", affection: 50, rating: 1.08, desc: "老搭档，不爱训练但天赋异禀。" },
-        pocky: { name: "pocky (狙击)", affection: 50, rating: 1.16, desc: "上下限差距极大的激进狙击手。" },
-        porz: { name: "porz (自由人)", affection: 50, rating: 1.19, desc: "新加入的世界级自由人，训练狂魔。" },
-        twiztss: { name: "twiztss (辅助)", affection: 50, rating: 1.05, desc: "万能辅助手，温柔的气氛组。" }
+        nain: { 
+            name: "nain (突破)", affection: 50, rating: 1.08, desc: "老搭档，不爱训练但天赋异禀。",
+            stats: { aim: 9.0, spray: 7.0, snipe: 0.0, sense: 6.0, utility: 6.0, vibe: 8.0 }
+        },
+        pocky: { 
+            name: "pocky (狙击)", affection: 50, rating: 1.16, desc: "上下限极大的激进狙击手。",
+            stats: { aim: 7.0, spray: 7.0, snipe: 7.0, sense: 9.0, utility: 3.0, vibe: 5.0 }
+        },
+        porz: { 
+            name: "porz (自由人)", affection: 50, rating: 1.19, desc: "世界级自由人，训练狂魔。",
+            stats: { aim: 7.0, spray: 5.0, snipe: 7.0, sense: 10.0, utility: 8.0, vibe: 3.0 }
+        },
+        twiztss: { 
+            name: "twiztss (辅助)", affection: 50, rating: 1.05, desc: "万能辅助手，温柔的气氛组。",
+            stats: { aim: 9.0, spray: 8.0, snipe: 3.0, sense: 5.0, utility: 6.0, vibe: 5.0 }
+        }
     };
 
     let captainStats = { rating: 0.99, condition: "良好" };
+
+    // ---------------- 铺垫1：日期流逝引擎 ----------------
+    function advanceDate(daysToAdd) {
+        let currentDate = new Date(gameStatus.date);
+        currentDate.setDate(currentDate.getDate() + daysToAdd);
+        // 格式化回 YYYY-MM-DD
+        gameStatus.date = currentDate.toISOString().split('T')[0];
+        console.log(`%c[系统] 日期推进了 ${daysToAdd} 天，当前日期: ${gameStatus.date}`, "color: #bada55;");
+    }
+
+    // ---------------- 隐藏训练结算逻辑 ----------------
+    function processTraining(tactic, isWin) {
+        console.log(`%c[隐藏系统] 开始结算今日训练... 战术:${tactic} | 结果:${isWin?'胜利':'失败'}`, "color: #00bfff; font-weight: bold;");
+        
+        if (tactic === 'steady') {
+            team.porz.stats.sense += 0.04;
+            team.porz.stats.utility += 0.02;
+            if(!isWin) team.porz.stats.vibe += 0.01; 
+        } 
+        else if (tactic === 'rush') {
+            let isNainMax = Math.random() > 0.5;
+            let p1 = isNainMax ? team.nain : team.twiztss;
+            let p2 = isNainMax ? team.twiztss : team.nain;
+            
+            p1.stats.aim += 0.04; p1.stats.spray += 0.03;
+            p2.stats.aim += 0.02; p2.stats.spray += 0.01;
+
+            if(!isWin) {
+                team.nain.stats.vibe += 0.02; 
+                team.twiztss.stats.vibe -= 0.03; 
+            }
+        } 
+        else if (tactic === 'snipe') {
+            if (isWin) {
+                team.pocky.stats.snipe += 0.15; team.pocky.stats.vibe += 0.05;
+            } else {
+                team.pocky.stats.snipe -= 0.20; team.pocky.stats.vibe -= 0.08;
+            }
+
+            if (Math.random() < 0.05) {
+                team.porz.stats.sense += 0.08; 
+            } else {
+                team.porz.stats.sense -= 0.02; 
+            }
+        }
+        console.table({"nain": team.nain.stats, "pocky": team.pocky.stats, "porz": team.porz.stats, "twiztss": team.twiztss.stats});
+    }
 
     // ---------------- UI 渲染引擎 ----------------
     function getRatingColor(rating) {
@@ -210,8 +270,6 @@
 
     function updateFLTV() {
         const fltvDiv = document.getElementById('fltv-panel');
-        
-        // 动态生成赛程列表HTML
         let scheduleHtml = "";
         gameStatus.schedules.forEach(item => {
             let statusColor = item.status === "进行中" ? "#00ff7f" : (item.status === "准备中" ? "#e6a822" : "#888");
@@ -227,7 +285,7 @@
         fltvDiv.innerHTML = `
             <div class="fltv-title">
                 <span>📊 FLTV 实时数据</span>
-                <span style="color:#aaa; font-size: 0.8em; font-weight:normal;">${gameStatus.date}</span>
+                <span style="color:#00ff7f; font-size: 0.85em; font-weight:bold;">${gameStatus.date}</span>
             </div>
             <div class="stat-row"><span>ARS 世界排名:</span> <strong style="color: gold;">#${gameStatus.arsRanking}</strong></div>
             <div class="schedule-box">
@@ -287,38 +345,26 @@
 
     // ---------------- 剧情剧本 ----------------
     const storyNodes = {
+        // ========== 第1天：1月8日 ==========
         start: {
             speaker: "系统旁白",
-            text: "你叫 carrycan，1990年4月14日出生。今天是2022年1月8日，休假后的第一天训练日。队伍刚刚发生人员变动：世界级自由人 porz 正式替换了 hoverboarder 加入了 RazeClan。<br><br>你们将在1月31日参加 Plast 春季赛（目前处于准备中状态）。目前队伍的 ARS 排名为 #11，外界对你们这套新阵容充满了审视。<br><br>你走进训练室，porz 正坐在他的新位置上，用他的卷尺调试外设。其他三人也陆续到了。",
+            text: "你叫 carrycan，1990年4月14日出生。今天是2022年1月8日，休假后的第一天训练日。队伍刚刚发生人员变动：世界级自由人 porz 正式替换了 hoverboarder 加入了 RazeClan。<br><br>你们将在1月31日参加 Plast 春季赛。目前队伍的 ARS 排名为 #11。<br><br>你走进训练室，porz 正坐在他的新位置上，用他的卷尺精确地调试着键盘角度。其他三人也陆续到了。",
             choices: [
                 { 
                     text: "【温和老登】走上前拍拍手：“伙计们，让我们欢迎新成员 porz 的加入！”", 
-                    // 【关键更新】：支持数组配置，最多可填4人好感度
-                    effects: [
-                        { player: 'twiztss', val: 5 },
-                        { player: 'porz', val: 5 },
-                    ], 
+                    effects: [{ player: 'twiztss', val: 5 }, { player: 'porz', val: 5 }], 
                     next: "scene_welcome_warm" 
                 },
                 { 
-                    text: "【严厉老登】点点头：“人都到齐了就上号，今天直接打两场训练赛，我要根据情况调整你们负责的位置。porz 会极大程度地增厚我们的战术本。”", 
-                    effects: [
-                        { player: 'porz', val: 5 }
-                    ], 
+                    text: "【严厉老登】点点头：“人都到齐了就上号，今天直接打训练赛，porz 会极大程度地增厚我们的战术本。”", 
+                    effects: [{ player: 'porz', val: 5 }], 
                     next: "scene_welcome_strict" 
-                },
-                { 
-                    text: "【放权老登】“nain，带 porz 熟悉一下我们的基础战术，我先去喝口咖啡。”", 
-                    effects: [
-                        { player: 'nain', val: 5 }
-                    ], 
-                    next: "scene_welcome_lazy" 
                 }
             ]
         },
         scene_welcome_warm: {
             speaker: "twiztss",
-            text: "（立刻鼓起掌来）欢迎兄弟！我是Fuss，这是Nelvijs，（转过身戳了戳pocky）“快和新成员打个招呼，他和你都是波罗的海人欸！”（pocky懒洋洋地哼唧了一声，含糊不清地打了个招呼。twiztss又转过身）我以前就听说你很厉害了！我已经准备好被推向另一个高度了！<br><br>porz 只是微微推了一下眼镜，点了点头，耳尖微微泛红：“谢谢。我们什么时候开始跑图？”",
+            text: "（立刻鼓起掌来）欢迎兄弟！我是Fuss，这是Nelvijs，（转过身戳了戳pocky）“快和新成员打个招呼，他和你都是波罗的海人欸！”<br><br>porz 只是微微推了一下眼镜，点了点头，耳尖微微泛红：“谢谢。我们什么时候开始跑图？”",
             choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
         },
         scene_welcome_strict: {
@@ -326,61 +372,137 @@
             text: "（眼神中闪过一丝认同）没问题。我已经研究过你们前两个月的Demo了，在 Inferno 的二楼控制上有些想法，等下可以试试。",
             choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
         },
-        scene_welcome_lazy: {
-            speaker: "nain",
-            text: "（喝了一口酒红色的可乐）行吧。欢迎来到Raze，Motherfucker。",
-            choices: [{ text: "准备进行首次队内训练...", next: "scene_first_scrim" }]
-        },
         
         scene_first_scrim: {
             speaker: "carrycan (你)",
-            text: "今天我们约了 ARS 排名 #18 的队伍打训练赛。这是 porz 加入后的首秀。作为指挥，你打算采用什么战术基调？",
+            text: "首训对手是 ARS 排名 #18 的队伍。作为指挥，你打算采用什么战术基调？",
             choices: [
                 { 
-                    text: "【战术：主打稳健】让 porz 按照他最舒服的节奏单摸，其他人默认控图。（战术加成 +10）", 
-                    isRoll: true,
-                    roll: { desc: "指挥稳健战术测试", tacticalBonus: 10, dc: 120, successNext: "scrim_win", failNext: "scrim_lose" }
+                    text: "【战术：主打稳健】让 porz 按照他舒服的节奏单摸。（战术加成 +10）", 
+                    setTactic: "steady", isRoll: true,
+                    roll: { desc: "首训稳健战术", tacticalBonus: 10, dc: 105, successNext: "scrim_win", failNext: "scrim_lose" }
                 },
                 { 
-                    text: "【战术：提速冲锋】利用 nain 的突破能力，强行拉开空间。（战术加成 +5，但更看运气）", 
-                    isRoll: true,
-                    roll: { desc: "指挥提速战术测试", tacticalBonus: 5, dc: 110, successNext: "scrim_win", failNext: "scrim_lose" }
+                    text: "【战术：提速冲锋】利用 nain 突破拉开空间。（战术加成 +5，更看运气）", 
+                    setTactic: "rush", isRoll: true,
+                    roll: { desc: "首训提速战术", tacticalBonus: 5, dc: 115, successNext: "scrim_win", failNext: "scrim_lose" }
                 },
                 { 
-                    text: "【战术：赌博式狙击】围绕 pocky 展开，让他去拿首杀建立开局优势。（战术加成 +0，极高风险）", 
-                    isRoll: true,
-                    roll: { desc: "指挥抽奖战术测试", tacticalBonus: 0, dc: 100, successNext: "scrim_win_pocky", failNext: "scrim_lose_pocky" }
+                    text: "【战术：赌博式狙击】让 pocky 拿首杀。（极高风险）", 
+                    setTactic: "snipe", isRoll: true,
+                    roll: { desc: "首训抽奖战术", tacticalBonus: 0, dc: 120, successNext: "scrim_win_pocky", failNext: "scrim_lose_pocky" }
                 }
             ]
         },
 
         scrim_win: {
             speaker: "系统旁白",
-            text: "训练赛以 16-10 拿下。porz 完美融入了节奏，他的残局处理极其合理。nain 笑着拍了拍手说：“看来新赛季我们有戏啊。”",
-            choices: [{ text: "继续休赛期备战...", next: "start" }] 
+            text: "训练赛以 16-10 拿下。porz 完美融入了节奏，他的残局处理极其合理。",
+            choices: [{ text: "结束今日训练...", triggerTrainSystem: true, next: "day1_summary" }] 
         },
         scrim_lose: {
             speaker: "系统旁白",
-            text: "训练赛 11-16 落败。与新成员的沟通出现了严重失误。porz 皱着眉头开始在战术册上记录着什么，而 twiztss 赶紧来语音里安慰你：“没事没事，第一天嘛，慢慢磨合，我觉得我们在 CT 方的表现很不错。”",
-            choices: [{ text: "反思战术，重新构思...", next: "start" }]
+            text: "训练赛 11-16 落败。与新成员的沟通出现了严重失误。porz 皱着眉头开始在战术册上记录着什么。",
+            choices: [{ text: "结束今日训练...", triggerTrainSystem: true, next: "day1_summary" }]
         },
         scrim_win_pocky: {
             speaker: "pocky",
-            text: "（得意地摸了摸鼻子）",
-            effects: [
-                        { player: 'pocky', val: 10 },
-                        { player: 'porz', val: -5 },
-                    ], 
-            choices: [{ text: "称赞他并继续备战...", next: "start" }]
+            text: "（得意地摸了摸下巴）看到了没队长，这就是我的狙击线。",
+            effects: [{ player: 'pocky', val: 10 }, { player: 'porz', val: -5 }], 
+            choices: [{ text: "结束今日训练...", triggerTrainSystem: true, next: "day1_summary" }]
         },
         scrim_lose_pocky: {
             speaker: "pocky",
-            text: "（皱着眉摸了摸鼻子）",
-            effects: [
-                        { player: 'pocky', val: -15 },
-                        { player: 'porz', val: -5 },
-                    ], 
-            choices: [{ text: "赶紧去安慰或者指导...", next: "start" }]
+            text: "（烦躁地抓了抓头发）...抱歉，鼠标有点滑。",
+            effects: [{ player: 'pocky', val: -15 }, { player: 'porz', val: -5 }], 
+            choices: [{ text: "结束今日训练...", triggerTrainSystem: true, next: "day1_summary" }]
+        },
+
+        day1_summary: {
+            speaker: "系统旁白",
+            text: "1月8日的训练日结束了。<br><br>你坐在空无一人的训练室里复盘录像。量变总会引起质变，你必须将这支队伍捏合成一个真正的整体。",
+            choices: [
+                { 
+                    text: "点击进入下一次训练日 (时间推进3天)", 
+                    advanceDays: 3, // 铺垫2：触发时间推进引擎
+                    next: "day2_start" 
+                }
+            ]
+        },
+
+        // ========== 第2天：1月11日 ==========
+        day2_start: {
+            speaker: "系统旁白",
+            text: "距离首训已经过去了三天。你们今天的重点是解决在 Nuke（核子危机）这张地图上的防守问题。<br><br>在跑图时，porz 提出了一个极其严谨的铁板防守站位，他要求 pocky 必须在精确的时间点交出特定的闪光弹和烟雾弹。pocky 却并不能保证每次都将道具扔对。",
+            choices: [
+                { 
+                    text: "【支持 porz：铁腕治军】纪律性是强队的基础。“pocky，按 porz 说的做，回去练道具。”", 
+                    effects: [{ player: 'porz', val: 10 }, { player: 'pocky', val: -5 }], 
+                    next: "day2_scrim_porz" 
+                },
+                { 
+                    text: "【支持 pocky：释放天赋】防守狙需要灵性。“首杀更加重要，pocky应该去狙外场。”", 
+                    effects: [{ player: 'pocky', val: 10 }, { player: 'porz', val: -10 }], 
+                    next: "day2_scrim_pocky" 
+                },
+                { 
+                    text: "【折中调和：战术妥协】“我来协防铁板，告诉我你需要的道具。twiztss，内场辛苦你了。”", 
+                    effects: [ { player: 'pocky', val: 2 }, { player: 'twiztss', val: +5 }], 
+                    next: "day2_scrim_mix" 
+                }
+            ]
+        },
+        day2_scrim_porz: {
+            speaker: "carrycan (你)",
+            text: "pocky 撇了撇嘴没说话，但还是按照要求回到了铁板。你们随后的训练赛打得极其严格。这种重防守的阵型，你能否指挥队伍防住对方的猛攻？",
+            choices: [
+                { 
+                    text: "开始今日训练赛判定（战术：主打稳健）", 
+                    setTactic: "steady", isRoll: true,
+                    roll: { desc: "Nuke 铁板纪律防守", tacticalBonus: 10, dc: 105, successNext: "day2_win", failNext: "day2_lose" }
+                }
+            ]
+        },
+        day2_scrim_pocky: {
+            speaker: "carrycan (你)",
+            text: "porz 皱了皱眉，默默划掉了刚才的战术。pocky 端着狙击枪冲向大仓。你必须围绕他的高风险走位重新布置防线。",
+            choices: [
+                { 
+                    text: "开始今日训练赛判定（战术：赌博式狙击）", 
+                    setTactic: "snipe", isRoll: true,
+                    roll: { desc: "Nuke 外场抽奖防守", tacticalBonus: 0, dc: 120, successNext: "day2_win", failNext: "day2_lose" }
+                }
+            ]
+        },
+        day2_scrim_mix: {
+            speaker: "carrycan (你)",
+            text: "你不仅要负责道具，还要作为铁板协防配合porz反清。",
+            choices: [
+                { 
+                    text: "开始今日训练赛判定（战术：动态防守）", 
+                    setTactic: "rush", isRoll: true,
+                    roll: { desc: "Nuke 动态反清防守", tacticalBonus: 5, dc: 115, successNext: "day2_win", failNext: "day2_lose" }
+                }
+            ]
+        },
+        day2_win: {
+            speaker: "系统旁白",
+            text: "今天的训练赛惊险拿下！对于这套阵容在 Nuke 上的表现，你有了底。虽然队伍内部的战术理念还有待磨合，但只要能赢，气氛就不会太差。",
+            choices: [
+                { text: "结束1月11日训练，等待后续剧本...", triggerTrainSystem: true, next: "day2_summary" }
+            ]
+        },
+        day2_lose: {
+            speaker: "系统旁白",
+            text: "今天的训练赛惨败。Nuke 的防线被对方彻底撕碎。训练结束后，训练室里的气氛降到了冰点。porz 在整理外设时说了一句：“我还是认为战术需要更改。”",
+            choices: [
+                { text: "结束1月11日训练，等待后续剧本...", triggerTrainSystem: true, next: "day2_summary" }
+            ]
+        },
+        day2_summary: {
+            speaker: "系统旁白",
+            text: "（试玩暂停区）<br><br>队长，底层的日历时间线和多事件连贯逻辑已经测试跑通！左侧的日期已经成功变更为 2022-01-11。<br><br><i>下一步我们将直接切入 1月31日 的大型比赛日，进入你期待已久的“每回合战术指挥推演模拟器”。</i>",
+            choices: [] // 暂时不给选项，等待下一次代码更新
         }
     };
 
@@ -401,26 +523,43 @@
             btn.innerText = choice.text;
             
             btn.onclick = () => {
-                // 【核心升级】：遍历好感度修改数组，完美支持1-4人同时加减分
+                // 1. 处理好感度
                 if (choice.effects && Array.isArray(choice.effects)) {
                     choice.effects.forEach(eff => {
                         if (team[eff.player]) {
                             team[eff.player].affection += eff.val;
-                            // 限制上下限在 0 - 100 之间
                             if (team[eff.player].affection > 100) team[eff.player].affection = 100;
                             if (team[eff.player].affection < 0) team[eff.player].affection = 0;
                         }
                     });
                 }
 
+                // 2. 铺垫：处理时间流逝
+                if (choice.advanceDays) {
+                    advanceDate(choice.advanceDays);
+                }
+
+                // 3. 记录战术选择
+                if (choice.setTactic) {
+                    gameStatus.currentTactic = choice.setTactic;
+                }
+
                 updateSidebar();
                 updateFLTV();
 
+                // 4. 掷骰子处理与结果缓存
                 if (choice.isRoll) {
                     let rollResult = executeRoll(choice.roll);
+                    gameStatus.lastScrimWin = rollResult.success;
                     renderNode(rollResult.nextNode, rollResult.log);
-                } else {
-                    renderNode(choice.next);
+                } 
+                else {
+                    if (choice.triggerTrainSystem) {
+                        processTraining(gameStatus.currentTactic, gameStatus.lastScrimWin);
+                    }
+                    if(choice.next) {
+                        renderNode(choice.next);
+                    }
                 }
             };
             choicesBox.appendChild(btn);
